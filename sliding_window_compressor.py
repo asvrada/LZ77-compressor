@@ -108,7 +108,7 @@ class SlidingWindowEncoder:
         encoded = []
 
         while len(buffer) > 0:
-            print(len(text))
+            # print(len(text))
             result = self.find_match(sliding_window, buffer)
 
             # no match found, simply output without compress/encode
@@ -129,17 +129,15 @@ class SlidingWindowEncoder:
 
             # match found, compress/encode it
             offset, length = result
-            # todo: get rid of next char
-            next_char = buffer[length] if length < len(buffer) else ""
 
             # output this encoding
-            encoded.append((offset, length, next_char))
+            encoded.append((offset, length))
 
             # remove length + 1 element from buffer, put them into sliding window
-            sliding_window.extend(self.popleft_n(buffer, length + 1))
+            sliding_window.extend(self.popleft_n(buffer, length))
 
             # move text into buffer
-            buffer.extend(self.popleft_n(text, length + 1))
+            buffer.extend(self.popleft_n(text, length))
 
         return encoded
 
