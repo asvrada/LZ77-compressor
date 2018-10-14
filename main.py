@@ -1,27 +1,30 @@
 import sys
+import string
 
 from sliding_window_compressor import SlidingWindowEncoder
 
 
-def open_file(file_path):
-    file = open(file_path, "r")
-    return file.read()
+def print_encoded(encoded):
+    ret = list(map(lambda x: chr(x) if type(x) == int else x, encoded[:100]))
+    print(ret)
 
 
 def test_read_file(file_path):
-    file_text = open_file(file_path)
+    compressor = SlidingWindowEncoder()
+    file_text = compressor.open_file(file_path)
     ret = SlidingWindowEncoder().compress(file_text)
 
-    print(ret[:50])
+    print_encoded(ret)
 
 
 def test_simple_input():
-    text1 = "ABCDEFGHI" * 5
+    text = string.ascii_lowercase * 3
+    text = text.encode("ascii")
 
-    ret = SlidingWindowEncoder().compress(text1)
-    print(ret[:200])
+    ret = SlidingWindowEncoder().compress(text)
+    print_encoded(ret)
 
 
 if __name__ == '__main__':
-    # test_simple_input()
-    test_read_file(sys.argv[1])
+    test_simple_input()
+    # test_read_file(sys.argv[1])

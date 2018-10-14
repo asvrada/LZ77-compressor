@@ -1,20 +1,37 @@
 from collections import deque
 
 
+class Pointer:
+    def __init__(self):
+        # Size of each pointer, in bytes
+        # size * 8 - 1 = offset + length
+        self.size = 3
+        # number of bits used to represent offset
+        self.bits_offset = 12
+        # number of bits used to represent length
+        self.bits_length = 11
+
+    def size_sliding_window(self):
+        return 2 ** self.bits_offset
+
+    def size_buffer(self):
+        return self.size_max_match() + 10
+
+    def size_max_match(self):
+        return 2 ** self.bits_length + self.size_min_match()
+
+    def size_min_match(self):
+        return 3
+
+
 class SlidingWindowEncoder:
     def __init__(self):
-        # Size of sliding window, in bytes
-        self.SIZE_SLIDING_WINDOW = 4081
-        # length of max match, in bytes
-        self.SIZE_MAX_MATCH = 17
-        # Length of min match, in bytes
-        self.SIZE_MIN_MATCH = 3
-        # Length of the buffer
-        self.SIZE_BUFFER = 256
+        self.pointer = Pointer()
 
     def find_match(self, sliding_window, buffer):
         """
         Find a match (both inclusive) longer than SIZE_MIN_MATCH and shorter than SIZE_MAX_MATCH
+        The string starts from buffer[0]
         :param sliding_window: The sliding window buffer
         :type sliding_window: deque
         :param buffer: The read ahead buffer
@@ -22,7 +39,6 @@ class SlidingWindowEncoder:
         :return: A tuple contains (offset, length) or None when there is no match
         :rtype: tuple | None
         """
-
         size_window = len(sliding_window)
         size_buffer = len(buffer)
 
@@ -41,15 +57,20 @@ class SlidingWindowEncoder:
             # we don't want to mess cur_sliding_window before finding a solid match
             tmp_sliding_window = cur_sliding_window
 
-            # matching
-            while tmp_sliding_window < size_window and cur_buffer < size_buffer and sliding_window[tmp_sliding_window] == buffer[cur_buffer]:
+            """
+            Matching
+            """
+            # don't go outside of the sliding window and read ahead buffer
+            # and keep the length of match less that MAX_LENGTH
+            while tmp_sliding_window < size_window and cur_buffer < size_buffer \
+                    and cur_buffer < self.pointer.size_max_match() \
+                    and sliding_window[tmp_sliding_window] == buffer[cur_buffer]:
                 cur_buffer += 1
                 tmp_sliding_window += 1
 
             # end of matching
             # if length < SIZE_MIN_MATCH, ignore this match
-            # todo: if length > SIZE_MAX_MATCH
-            if cur_buffer < self.SIZE_MIN_MATCH:
+            if cur_buffer < self.pointer.size_min_match():
                 cur_sliding_window -= 1
                 continue
 
@@ -79,27 +100,32 @@ class SlidingWindowEncoder:
 
         return ret
 
+    def open_file(self, path):
+        f = open(path, "rb")
+        return f.read()
+
     def compress(self, text):
         """
+        todo: receive filename
         Compress the text using a sliding window
         :param text: the input
-        :type text: string
+        :type text: bytes
         :return: compressed text
         """
-
+        # Store the text into a queue
         text = deque(text)
 
         """
         1. init sliding window and read ahead buffer
         """
-        sliding_window = deque(maxlen=self.SIZE_SLIDING_WINDOW)
-        buffer = deque(maxlen=self.SIZE_BUFFER)
+        sliding_window = deque(maxlen=self.pointer.size_sliding_window())
+        buffer = deque(maxlen=self.pointer.size_buffer())
 
         """
         2. init read ahead buffer
         """
         # init read buffer
-        buffer.extend(self.popleft_n(text, self.SIZE_BUFFER))
+        buffer.extend(self.popleft_n(text, self.pointer.size_buffer()))
 
         """
         3. Start the encoding loop
@@ -108,7 +134,6 @@ class SlidingWindowEncoder:
         encoded = []
 
         while len(buffer) > 0:
-            # print(len(text))
             result = self.find_match(sliding_window, buffer)
 
             """
@@ -133,15 +158,27 @@ class SlidingWindowEncoder:
             offset, length = result
 
             # output this encoding
-            encoded.append((offset, length))
+            # length - min_match
+            encoded.append((offset, length - self.pointer.size_min_match()))
 
             # remove length + 1 element from buffer, put them into sliding window
             sliding_window.extend(self.popleft_n(buffer, length))
 
-            # move text into buffer
+            # move following text into buffer
             buffer.extend(self.popleft_n(text, length))
 
         return encoded
+
+    def compress_to_file(self, input_data, out_file_name):
+        """
+        Read ASCII file and compress it and output to ASCII file
+        :param input_data:
+        :type input_data:
+        :param out_file_name:
+        :type out_file_name:
+        :return:
+        :rtype:
+        """
 
     def decompress(self, encoded):
         pass
