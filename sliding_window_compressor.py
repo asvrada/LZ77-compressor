@@ -21,7 +21,58 @@ class Pointer:
         return 2 ** self.bits_length + self.size_min_match()
 
     def size_min_match(self):
-        return 3
+        return 4
+
+    def int2str(self, number, length):
+        number = "{0:b}".format(number)
+        # pad with 0
+        return "0" * (length - len(number)) + number
+
+    def encode(self, offset, length):
+        """
+        todo: bug: hardcoded length
+        Encode the offset and length into a pointer of size [self.size] in bytes
+        :param offset:
+        :type offset: int
+        :param length:
+        :type length: int
+        :return: a bytearray contains the pointer
+        :rtype: bytearray
+        """
+        # map the range of length into correct one
+        length -= self.size_min_match()
+
+        # convert number into binary string
+        offset = self.int2str(offset, self.bits_offset)
+        length = self.int2str(length, self.bits_length)
+
+        barr = bytearray([0, 0, 0])
+
+        # flag bit + first 7 bits of offset
+        barr[0] = 128 + int(offset[:7], 2)
+        # last 5 bits + first 3 bits of length
+        barr[1] = int(offset[7:] + length[:3], 2)
+        barr[2] = int(length[3:], 2)
+        return barr
+
+    def decode(self, arr_bytes):
+        """
+        Decode pointers from a bytearray
+        :param arr_bytes: The bytearray
+        :type arr_bytes: bytearray
+        :return: offset, length as a tuple
+        :rtype: tuple
+        """
+        # todo: bug: hardcoded length
+        arr_binary = [self.int2str(n, 8) for n in arr_bytes]
+
+        # extract the binary string for offset
+        offset = int(arr_binary[0][1:] + arr_binary[1][:5], 2)
+
+        # extract the binary string for length
+        length = int(arr_binary[1][5:] + arr_binary[2], 2)
+
+        return offset, length + self.size_min_match()
 
 
 class SlidingWindowEncoder:
@@ -102,7 +153,8 @@ class SlidingWindowEncoder:
 
     def open_file(self, path):
         f = open(path, "rb")
-        return f.read()
+        text = f.read()
+        return text
 
     def compress(self, text):
         """
@@ -111,6 +163,7 @@ class SlidingWindowEncoder:
         :param text: the input
         :type text: bytes
         :return: compressed text
+        :rtype: bytearray
         """
         # Store the text into a queue
         text = deque(text)
@@ -131,7 +184,7 @@ class SlidingWindowEncoder:
         3. Start the encoding loop
         """
         # The encoded text
-        encoded = []
+        encoded = bytearray()
 
         while len(buffer) > 0:
             result = self.find_match(sliding_window, buffer)
@@ -158,8 +211,7 @@ class SlidingWindowEncoder:
             offset, length = result
 
             # output this encoding
-            # length - min_match
-            encoded.append((offset, length - self.pointer.size_min_match()))
+            encoded.extend(self.pointer.encode(offset, length))
 
             # remove length + 1 element from buffer, put them into sliding window
             sliding_window.extend(self.popleft_n(buffer, length))
@@ -179,6 +231,33 @@ class SlidingWindowEncoder:
         :return:
         :rtype:
         """
-
-    def decompress(self, encoded):
         pass
+
+    def decompress(self, arrays):
+        # array of string
+        decode = []
+
+        cur = 0
+        while cur < len(arrays):
+            head = arrays[cur]
+            """
+            Decode non-pointers
+            """
+            if head < 128:
+                decode.append(chr(head))
+                cur += 1
+                continue
+
+            """
+            Decode pointer
+            """
+            barr = bytearray(arrays[cur: cur + 3])
+            cur += 3
+
+            offset, length = self.pointer.decode(barr)
+            start = len(decode) - offset - 1
+            end = start + length
+            decode.extend(decode[start:end])
+
+        decoded_text = "".join(decode)
+        return decoded_text
