@@ -1,4 +1,5 @@
 import string
+import sys
 
 from Compressor.compressor import Compressor
 
@@ -23,7 +24,7 @@ def test_read_file(file_path):
 
 
 def test_simple_input():
-    text = string.ascii_lowercase * 3 + "hello world"
+    text = string.ascii_lowercase[:4] * 3
     text = text.encode("ascii")
 
     print("Length before compression:", len(text))
@@ -36,8 +37,22 @@ def test_simple_input():
     print(decoded)
 
 
+def test_escape():
+    text = bytes(b"\xCC\xFF\xCC\xFF\xCC\xFF\xCC\xFF\xCC\xFF\xCC\xFF\xCC\xFF")
+
+    compressor = Compressor()
+    ret = compressor.compress(text)
+
+    decoded = compressor.decompress(ret)
+
+
 if __name__ == '__main__':
-    test_simple_input()
+    c = Compressor()
+    c.compress_to_file("test/book1.txt", "out/output.txt")
+    c.decompress_to_file("out/output.txt", "out/decoded.txt")
+
+    # test_escape()
+    # test_simple_input()
     # test_read_file(sys.argv[1])
 
     # Compressor().compress_to_file("test/aaaREADME.txt", "output.txt")

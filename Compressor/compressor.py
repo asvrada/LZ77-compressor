@@ -2,8 +2,17 @@ from collections import deque
 
 
 def int2str(number, length):
+    """
+    Convert number into binary string, and pad with leading 0 if binary string shorter than length
+
+    :param number:
+    :type number: int
+    :param length:
+    :type length: int
+    :return: The binary string representation of number
+    :rtype: str
+    """
     number = "{0:b}".format(number)
-    # pad leading 0
     return "0" * (length - len(number)) + number
 
 
@@ -30,29 +39,47 @@ def popleft_n(queue, n):
 
 class Pointer:
     def __init__(self):
-        # Size of each pointer, in bytes
-        # size * 8 - 1 = offset + length
-        self.size = 3
+        self.ESCAPE_CHAR = int.from_bytes(b"\xCC", byteorder="big")
+
+        # Size of the entire pointer, in bytes, NOT including escape character
+        # size * 8 = offset + length
+        self.size = 2
         # number of bits used to represent offset
         self.bits_offset = 12
         # number of bits used to represent length
-        self.bits_length = 11
+        self.bits_length = 4
 
     def size_sliding_window(self):
+        """
+        Size of sliding window in bytes
+        """
         return 2 ** self.bits_offset
 
     def size_buffer(self):
-        return self.size_max_match() + 10
+        """
+        Size of read ahead buffer in bytes
+        """
+        return self.length_longest_match() + 10
 
-    def size_max_match(self):
-        return 2 ** self.bits_length + self.size_min_match()
+    def length_longest_match(self):
+        """
+        Length of the longest match possible (inclusive)
+        :return:
+        :rtype:
+        """
+        return 2 ** self.bits_length + self.length_shortest_match() - 1
 
-    def size_min_match(self):
-        return self.size + 1
+    def length_shortest_match(self):
+        """
+        Length of the shortest match possible (inclusive)
+        :return:
+        :rtype:
+        """
+        # +2 to compensate for the escape character
+        return self.size + 2
 
     def encode(self, offset, length):
         """
-        todo: bug: hardcoded length
         Encode the offset and length into a pointer of size [self.size] in bytes
 
         :param offset:
@@ -63,19 +90,21 @@ class Pointer:
         :rtype: bytearray
         """
         # map the range of length into correct one
-        length -= self.size_min_match()
+        length -= self.length_shortest_match()
 
         # convert number into binary string
-        offset = int2str(offset, self.bits_offset)
-        length = int2str(length, self.bits_length)
+        bstr = int2str(offset, self.bits_offset) + int2str(length, self.bits_length)
 
-        barr = bytearray([0, 0, 0])
+        barr = bytearray([0] * (self.size + 1))
 
-        # flag bit + first 7 bits of offset
-        barr[0] = 128 + int(offset[:7], 2)
-        # last 5 bits + first 3 bits of length
-        barr[1] = int(offset[7:] + length[:3], 2)
-        barr[2] = int(length[3:], 2)
+        barr[0] = self.ESCAPE_CHAR
+        for i in range(1, len(barr)):
+            barr[i] = int(bstr[(i - 1) * 8:i * 8], 2)
+
+        if barr[1] == self.ESCAPE_CHAR:
+            # todo: bug
+            print("ERROR")
+
         return barr
 
     def decode(self, arr_bytes):
@@ -87,16 +116,12 @@ class Pointer:
         :return: offset, length as a tuple
         :rtype: tuple
         """
-        # todo: bug: hardcoded length
-        arr_binary = [int2str(n, 8) for n in arr_bytes]
+        bstr = "".join([int2str(n, 8) for n in arr_bytes[1:]])
 
-        # extract the binary string for offset
-        offset = int(arr_binary[0][1:] + arr_binary[1][:5], 2)
+        offset = int(bstr[:self.bits_offset], 2)
+        length = int(bstr[self.bits_offset:], 2)
 
-        # extract the binary string for length
-        length = int(arr_binary[1][5:] + arr_binary[2], 2)
-
-        return offset, length + self.size_min_match()
+        return offset, length + self.length_shortest_match()
 
 
 class Compressor:
@@ -151,14 +176,16 @@ class Compressor:
             # don't go outside of the sliding window and read ahead buffer
             # and keep the length of match less that MAX_LENGTH
             while tmp_sliding_window < size_window and cur_buffer < size_buffer \
-                    and cur_buffer < self.pointer.size_max_match() \
+                    and cur_buffer < self.pointer.length_longest_match() \
                     and sliding_window[tmp_sliding_window] == buffer[cur_buffer]:
                 cur_buffer += 1
                 tmp_sliding_window += 1
 
-            # end of matching
+            """
+            End of matching
+            """
             # if length < SIZE_MIN_MATCH, ignore this match
-            if cur_buffer < self.pointer.size_min_match():
+            if cur_buffer < self.pointer.length_shortest_match():
                 cur_sliding_window -= 1
                 continue
 
@@ -199,6 +226,8 @@ class Compressor:
         encoded = bytearray()
 
         while len(buffer) > 0:
+            # print progress
+            print("{} / {}".format(len(content) - len(text), len(content)))
             result = self.find_match(sliding_window, buffer)
 
             """
@@ -210,6 +239,9 @@ class Compressor:
                 sliding_window.append(head)
 
                 # output to encoded
+                # escape char
+                if head == self.pointer.ESCAPE_CHAR:
+                    encoded.append(self.pointer.ESCAPE_CHAR)
                 encoded.append(head)
 
                 # read next char from input
@@ -260,16 +292,22 @@ class Compressor:
             """
             Decode non-pointers
             """
-            if head < 128:
+            if head != self.pointer.ESCAPE_CHAR:
                 decode.append(head)
                 cur += 1
+                continue
+
+            # escape char
+            if content[cur + 1] == self.pointer.ESCAPE_CHAR:
+                decode.append(head)
+                cur += 2
                 continue
 
             """
             Decode pointer
             """
-            barr = bytearray(content[cur: cur + 3])
-            cur += 3
+            barr = bytearray(content[cur: cur + self.pointer.size + 1])
+            cur += self.pointer.size + 1
 
             offset, length = self.pointer.decode(barr)
             start = len(decode) - offset - 1

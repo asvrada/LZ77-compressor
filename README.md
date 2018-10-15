@@ -20,7 +20,7 @@ python compressor.py -d path/to/file -o output.txt
 ### In other Python files
 
 ```python
-from compressor import Compressor
+from Compressor.compressor import Compressor
 
 c = Compressor()
 c.compress_to_file(in_file, out_file)
