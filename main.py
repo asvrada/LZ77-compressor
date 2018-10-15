@@ -1,21 +1,21 @@
-import sys
 import string
 
-from compressor import Compressor, Pointer
+from Compressor.compressor import Compressor
 
 
-def print_encoded(encoded):
-    print(encoded)
+def open_file(file):
+    with open(file, "rb") as f:
+        return f.read()
 
 
 def test_read_file(file_path):
     compressor = Compressor()
-    file_text = compressor.open_file(file_path)
+
+    file_text = open_file(file_path)
 
     print("Length before compression:", len(file_text))
 
     compressed = compressor.compress(file_text)
-
     print("Length AFTER: ", len(compressed))
 
     decoded = compressor.decompress(compressed)
@@ -30,7 +30,6 @@ def test_simple_input():
 
     compressor = Compressor()
     ret = compressor.compress(text)
-
     print("Length AFTER: ", len(ret))
 
     decoded = compressor.decompress(ret)

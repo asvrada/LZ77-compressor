@@ -10,6 +10,7 @@ def int2str(number, length):
 def popleft_n(queue, n):
     """
     Pop n elements from deque
+
     :param queue: the buffer
     :type queue: deque
     :param n: number of element to pop
