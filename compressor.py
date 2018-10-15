@@ -1,6 +1,32 @@
 from collections import deque
 
 
+def int2str(number, length):
+    number = "{0:b}".format(number)
+    # pad leading 0
+    return "0" * (length - len(number)) + number
+
+
+def popleft_n(queue, n):
+    """
+    Pop n elements from deque
+    :param queue: the buffer
+    :type queue: deque
+    :param n: number of element to pop
+    :type n: int
+    :return: the popped elements
+    :rtype: list[str]
+    """
+    ret = []
+
+    for _ in range(n):
+        if len(queue) == 0:
+            break
+        ret.append(queue.popleft())
+
+    return ret
+
+
 class Pointer:
     def __init__(self):
         # Size of each pointer, in bytes
@@ -21,17 +47,13 @@ class Pointer:
         return 2 ** self.bits_length + self.size_min_match()
 
     def size_min_match(self):
-        return 4
-
-    def int2str(self, number, length):
-        number = "{0:b}".format(number)
-        # pad with 0
-        return "0" * (length - len(number)) + number
+        return self.size + 1
 
     def encode(self, offset, length):
         """
         todo: bug: hardcoded length
         Encode the offset and length into a pointer of size [self.size] in bytes
+
         :param offset:
         :type offset: int
         :param length:
@@ -43,8 +65,8 @@ class Pointer:
         length -= self.size_min_match()
 
         # convert number into binary string
-        offset = self.int2str(offset, self.bits_offset)
-        length = self.int2str(length, self.bits_length)
+        offset = int2str(offset, self.bits_offset)
+        length = int2str(length, self.bits_length)
 
         barr = bytearray([0, 0, 0])
 
@@ -58,13 +80,14 @@ class Pointer:
     def decode(self, arr_bytes):
         """
         Decode pointers from a bytearray
+
         :param arr_bytes: The bytearray
         :type arr_bytes: bytearray
         :return: offset, length as a tuple
         :rtype: tuple
         """
         # todo: bug: hardcoded length
-        arr_binary = [self.int2str(n, 8) for n in arr_bytes]
+        arr_binary = [int2str(n, 8) for n in arr_bytes]
 
         # extract the binary string for offset
         offset = int(arr_binary[0][1:] + arr_binary[1][:5], 2)
@@ -75,14 +98,27 @@ class Pointer:
         return offset, length + self.size_min_match()
 
 
-class SlidingWindowEncoder:
-    def __init__(self):
+class Compressor:
+    """
+    A compressor that uses sliding window to compress any binary file
+    """
+
+    def __init__(self, window_size=12):
+        """
+        Constructor
+        todo: variable window size
+
+        :param window_size: Number of bits of sliding window
+        :type window_size: int
+        """
         self.pointer = Pointer()
+        self.escape_char = b"\xCC"
 
     def find_match(self, sliding_window, buffer):
         """
         Find a match (both inclusive) longer than SIZE_MIN_MATCH and shorter than SIZE_MAX_MATCH
         The string starts from buffer[0]
+
         :param sliding_window: The sliding window buffer
         :type sliding_window: deque
         :param buffer: The read ahead buffer
@@ -132,41 +168,17 @@ class SlidingWindowEncoder:
 
         return None
 
-    def popleft_n(self, queue, n):
+    def compress(self, content):
         """
-        Pop n elements from deque
-        :param queue: the buffer
-        :type queue: deque
-        :param n: number of element to pop
-        :type n: int
-        :return: the popped elements
-        :rtype: list[str]
-        """
-        ret = []
+        Compress the content using a sliding window
 
-        for _ in range(n):
-            if len(queue) == 0:
-                break
-            ret.append(queue.popleft())
-
-        return ret
-
-    def open_file(self, path):
-        f = open(path, "rb")
-        text = f.read()
-        return text
-
-    def compress(self, text):
-        """
-        todo: receive filename
-        Compress the text using a sliding window
-        :param text: the input
-        :type text: bytes
-        :return: compressed text
+        :param content: the input to compress
+        :type content: bytes
+        :return: compressed content
         :rtype: bytearray
         """
         # Store the text into a queue
-        text = deque(text)
+        text = deque(content)
 
         """
         1. init sliding window and read ahead buffer
@@ -177,13 +189,12 @@ class SlidingWindowEncoder:
         """
         2. init read ahead buffer
         """
-        # init read buffer
-        buffer.extend(self.popleft_n(text, self.pointer.size_buffer()))
+        # fill read ahead buffer
+        buffer.extend(popleft_n(text, self.pointer.size_buffer()))
 
         """
         3. Start the encoding loop
         """
-        # The encoded text
         encoded = bytearray()
 
         while len(buffer) > 0:
@@ -210,54 +221,76 @@ class SlidingWindowEncoder:
             """
             offset, length = result
 
-            # output this encoding
+            # output this pointer
             encoded.extend(self.pointer.encode(offset, length))
 
-            # remove length + 1 element from buffer, put them into sliding window
-            sliding_window.extend(self.popleft_n(buffer, length))
+            # remove number of "length" elements from buffer, put them into sliding window
+            sliding_window.extend(popleft_n(buffer, length))
 
             # move following text into buffer
-            buffer.extend(self.popleft_n(text, length))
+            buffer.extend(popleft_n(text, length))
 
         return encoded
 
-    def compress_to_file(self, input_data, out_file_name):
-        """
-        Read ASCII file and compress it and output to ASCII file
-        :param input_data:
-        :type input_data:
-        :param out_file_name:
-        :type out_file_name:
-        :return:
-        :rtype:
-        """
-        pass
+    def compress_to_file(self, input_file, out_file):
+        with open(input_file, "rb") as file:
+            contents = file.read()
 
-    def decompress(self, arrays):
-        # array of string
-        decode = []
+        barr = self.compress(contents)
+
+        # store the bytearray to file
+        with open(out_file, "wb") as file:
+            file.write(barr)
+
+    def decompress(self, content):
+        """
+        Decompress the compressed data
+
+        :param content: The input
+        :type content: bytes
+        :return: The decompressed data
+        :rtype: bytearray
+        """
+        decode = bytearray()
 
         cur = 0
-        while cur < len(arrays):
-            head = arrays[cur]
+        while cur < len(content):
+            head = content[cur]
             """
             Decode non-pointers
             """
             if head < 128:
-                decode.append(chr(head))
+                decode.append(head)
                 cur += 1
                 continue
 
             """
             Decode pointer
             """
-            barr = bytearray(arrays[cur: cur + 3])
+            barr = bytearray(content[cur: cur + 3])
             cur += 3
 
             offset, length = self.pointer.decode(barr)
             start = len(decode) - offset - 1
             end = start + length
+
             decode.extend(decode[start:end])
 
-        decoded_text = "".join(decode)
-        return decoded_text
+        return decode
+
+    def decompress_to_file(self, input_file, output_file):
+        """
+        Decompress the input file and output to file
+
+        :param input_file:
+        :type input_file: str
+        :param output_file:
+        :type output_file: str
+        """
+        with open(input_file, "rb") as file:
+            content = file.read()
+
+        decoded = self.decompress(content)
+
+        with open(output_file, "wb") as file:
+            file.write(decoded)

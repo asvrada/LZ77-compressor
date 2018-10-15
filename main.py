@@ -1,7 +1,7 @@
 import sys
 import string
 
-from sliding_window_compressor import SlidingWindowEncoder, Pointer
+from compressor import Compressor, Pointer
 
 
 def print_encoded(encoded):
@@ -9,7 +9,7 @@ def print_encoded(encoded):
 
 
 def test_read_file(file_path):
-    compressor = SlidingWindowEncoder()
+    compressor = Compressor()
     file_text = compressor.open_file(file_path)
 
     print("Length before compression:", len(file_text))
@@ -28,7 +28,7 @@ def test_simple_input():
 
     print("Length before compression:", len(text))
 
-    compressor = SlidingWindowEncoder()
+    compressor = Compressor()
     ret = compressor.compress(text)
 
     print("Length AFTER: ", len(ret))
@@ -38,5 +38,7 @@ def test_simple_input():
 
 
 if __name__ == '__main__':
-    # test_simple_input()
-    test_read_file(sys.argv[1])
+    test_simple_input()
+    # test_read_file(sys.argv[1])
+
+    # Compressor().compress_to_file("test/aaaREADME.txt", "output.txt")
