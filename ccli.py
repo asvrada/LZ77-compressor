@@ -1,5 +1,6 @@
-from Compressor.compressor import Compressor
 import argparse
+
+from Compressor.compressor import Compressor
 
 parser = argparse.ArgumentParser(description="Sliding Window Compressor by Zijie Wu\nExample usage:\npython ccli.py zip book1.txt compressed.file", formatter_class=argparse.RawDescriptionHelpFormatter)
 
