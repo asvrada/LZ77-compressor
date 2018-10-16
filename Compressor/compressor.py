@@ -101,10 +101,6 @@ class Pointer:
         for i in range(1, len(barr)):
             barr[i] = int(bstr[(i - 1) * 8:i * 8], 2)
 
-        if barr[1] == self.ESCAPE_CHAR:
-            # todo: bug
-            print("ERROR")
-
         return barr
 
     def decode(self, arr_bytes):
@@ -152,6 +148,7 @@ class Compressor:
         :return: A tuple contains (offset, length) or None when there is no match
         :rtype: tuple | None
         """
+        # todo: use rfind
         size_window = len(sliding_window)
         size_buffer = len(buffer)
 
@@ -227,7 +224,10 @@ class Compressor:
 
         while len(buffer) > 0:
             # print progress
-            print("{} / {}".format(len(content) - len(text), len(content)))
+            tmp_total = len(content)
+            tmp_current = tmp_total - len(text)
+            print("{:.1f}%".format(float(tmp_current) / tmp_total * 100))
+
             result = self.find_match(sliding_window, buffer)
 
             """
@@ -241,8 +241,9 @@ class Compressor:
                 # output to encoded
                 # escape char
                 if head == self.pointer.ESCAPE_CHAR:
-                    encoded.append(self.pointer.ESCAPE_CHAR)
-                encoded.append(head)
+                    encoded.extend(bytes(b"\xCC\x00\x00"))
+                else:
+                    encoded.append(head)
 
                 # read next char from input
                 if len(text) > 0:
@@ -297,10 +298,10 @@ class Compressor:
                 cur += 1
                 continue
 
-            # escape char
-            if content[cur + 1] == self.pointer.ESCAPE_CHAR:
-                decode.append(head)
-                cur += 2
+            # Is escaped char
+            if content[cur + 1] == 0 and content[cur + 2] == 0:
+                decode.append(self.pointer.ESCAPE_CHAR)
+                cur += 3
                 continue
 
             """

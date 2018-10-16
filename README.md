@@ -10,11 +10,11 @@ The compressed data is array of bytes, pointers are represented with multiple by
 
 ### In terminal
 ```bash
-# [C]ompress file and output to given file
-python compressor.py -c path/to/file -o output.txt
+# Compress file and output to given file
+python cli.py zip path/to/file output.file
 
-# [D]ecompress file and output to given file
-python compressor.py -d path/to/file -o output.txt
+# Decompress file and output to given file
+python cli.py unzip path/to/file output.file
 ```
 
 ### In other Python files
@@ -24,12 +24,8 @@ from Compressor.compressor import Compressor
 
 c = Compressor()
 c.compress_to_file(in_file, out_file)
-c.decompress(out_file, out_file_decompressed)
+c.decompress_to_file(in_file, out_file)
 ```
 
 ## TODO
-
-2. Fix pointer format
-1. Add CLI utility
-3. Remove hard-coded codes
-4. Allow parameters
+3. Remove hard-coded length and Allow parameters

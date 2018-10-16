@@ -48,7 +48,7 @@ def test_escape():
 
 if __name__ == '__main__':
     c = Compressor()
-    c.compress_to_file("test/book1.txt", "out/output.txt")
+    c.compress_to_file("test/pic.txt", "out/output.txt")
     c.decompress_to_file("out/output.txt", "out/decoded.txt")
 
     # test_escape()
