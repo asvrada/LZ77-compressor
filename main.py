@@ -47,12 +47,7 @@ def test_escape():
 
 
 if __name__ == '__main__':
-    c = Compressor()
-    c.compress_to_file("test/pic.txt", "out/output.txt")
+    c = Compressor(16)
+    c.compress_to_file("test/aaaREADME.txt", "out/output.txt")
     c.decompress_to_file("out/output.txt", "out/decoded.txt")
 
-    # test_escape()
-    # test_simple_input()
-    # test_read_file(sys.argv[1])
-
-    # Compressor().compress_to_file("test/aaaREADME.txt", "output.txt")

@@ -1,17 +1,20 @@
 from .utilities import int2str
+import math
 
 
 class Pointer:
-    def __init__(self):
+    def __init__(self, bits_offset=12):
+        bits_offset = max(10, bits_offset)
+
         self.ESCAPE_CHAR = int.from_bytes(b"\xCC", byteorder="big")
 
         # Size of the entire pointer, in bytes, NOT including escape character
         # size * 8 = offset + length
-        self.size = 2
+        self.size = max(2, math.ceil((bits_offset + 1) / 8))
         # number of bits used to represent offset
-        self.bits_offset = 12
+        self.bits_offset = bits_offset
         # number of bits used to represent length
-        self.bits_length = 4
+        self.bits_length = self.size * 8 - self.bits_offset
 
     def size_sliding_window(self):
         """

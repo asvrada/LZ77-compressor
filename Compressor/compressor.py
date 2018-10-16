@@ -9,15 +9,15 @@ class Compressor:
     A compressor that uses sliding window to compress any binary file
     """
 
-    def __init__(self, window_size=12):
+    def __init__(self, bits_windows=12):
         """
         Constructor
         todo: variable window size
 
-        :param window_size: Number of bits of sliding window
-        :type window_size: int
+        :param bits_windows: Number of bits of sliding window
+        :type bits_windows: int
         """
-        self.pointer = Pointer()
+        self.pointer = Pointer(bits_windows)
         self.escape_char = b"\xCC"
 
     def find_match(self, sliding_window, buffer):
@@ -105,6 +105,9 @@ class Compressor:
         """
         encoded = bytearray()
 
+        # before start, encode size of sliding window using 1 byte
+        encoded.append(self.pointer.bits_offset)
+
         while len(buffer) > 0:
             # print progress
             tmp_total = len(content)
@@ -124,7 +127,9 @@ class Compressor:
                 # output to encoded
                 # escape char
                 if head == self.pointer.ESCAPE_CHAR:
-                    encoded.extend(bytes(b"\xCC\x00\x00"))
+                    # \xCC -> \xCC\x00\x00
+                    encoded.append(self.pointer.ESCAPE_CHAR)
+                    encoded.extend(bytes(b"\x00") * self.pointer.size)
                 else:
                     encoded.append(head)
 
@@ -170,7 +175,10 @@ class Compressor:
         """
         decode = bytearray()
 
-        cur = 0
+        # before we start, decode the size of sliding window
+        self.pointer = Pointer(content[0])
+
+        cur = 1
         while cur < len(content):
             head = content[cur]
             """
@@ -181,10 +189,10 @@ class Compressor:
                 cur += 1
                 continue
 
-            # Is escaped char
-            if content[cur + 1] == 0 and content[cur + 2] == 0:
+            # If is escaped char
+            if sum(content[cur + 1: cur + self.pointer.size + 1]) == 0:
                 decode.append(self.pointer.ESCAPE_CHAR)
-                cur += 3
+                cur += self.pointer.size + 1
                 continue
 
             """
