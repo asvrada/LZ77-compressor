@@ -10,7 +10,7 @@ class Pointer:
 
         # Size of the entire pointer, in bytes, NOT including escape character
         # size * 8 = offset + length
-        self.size = max(2, math.ceil((bits_offset + 1) / 8))
+        self.size = max(2, math.ceil((bits_offset + 4) / 8))
         # number of bits used to represent offset
         self.bits_offset = bits_offset
         # number of bits used to represent length

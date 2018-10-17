@@ -1,4 +1,6 @@
 .idea
 .DS_Store
+out
+result
 
 __pycache__/
