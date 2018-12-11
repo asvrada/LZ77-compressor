@@ -1,24 +1,17 @@
 from collections import deque
 
-from .utilities import popleft_n
+from .utilities import popleft_n, read_from_buffer
 from .pointer import Pointer
+
+import sys
 
 
 class Compressor:
-    """
-    A compressor that uses sliding window to compress any binary file
-    """
-
-    def __init__(self, bits_windows=12):
-        """
-        Constructor
-        todo: variable window size
-
-        :param bits_windows: Number of bits of sliding window
-        :type bits_windows: int
-        """
+    def __init__(self, buffered_reader, bits_windows=12):
         self.pointer = Pointer(bits_windows)
         self.escape_char = b"\xCC"
+        self.content = deque(read_from_buffer(buffered_reader))
+        self.result = bytearray()
 
     def find_match(self, sliding_window, buffer):
         """
@@ -76,17 +69,8 @@ class Compressor:
 
         return None
 
-    def compress(self, content):
-        """
-        Compress the content using a sliding window
-
-        :param content: the input to compress
-        :type content: bytes
-        :return: compressed content
-        :rtype: bytearray
-        """
-        # Store the text into a queue
-        text = deque(content)
+    def compress(self):
+        encoded = self.result
 
         """
         1. init sliding window and read ahead buffer
@@ -98,22 +82,15 @@ class Compressor:
         2. init read ahead buffer
         """
         # fill read ahead buffer
-        buffer.extend(popleft_n(text, self.pointer.size_buffer()))
+        buffer.extend(popleft_n(self.content, self.pointer.size_buffer()))
 
         """
         3. Start the encoding loop
         """
-        encoded = bytearray()
-
         # before start, encode size of sliding window using 1 byte
         encoded.append(self.pointer.bits_offset)
 
         while len(buffer) > 0:
-            # print progress
-            tmp_total = len(content)
-            tmp_current = tmp_total - len(text)
-            print("{:.1f}%".format(float(tmp_current) / tmp_total * 100))
-
             result = self.find_match(sliding_window, buffer)
 
             """
@@ -134,8 +111,10 @@ class Compressor:
                     encoded.append(head)
 
                 # read next char from input
-                if len(text) > 0:
-                    buffer.append(text.popleft())
+                if len(self.content) > 0:
+                    buffer.append(self.content.popleft())
+
+                # back to find next match
                 continue
 
             """
@@ -150,78 +129,78 @@ class Compressor:
             sliding_window.extend(popleft_n(buffer, length))
 
             # move following text into buffer
-            buffer.extend(popleft_n(text, length))
+            buffer.extend(popleft_n(self.content, length))
 
-        return encoded
+    def run(self):
+        self.compress()
+        return self
 
-    def compress_to_file(self, input_file, out_file):
-        with open(input_file, "rb") as file:
-            contents = file.read()
-
-        barr = self.compress(contents)
-
+    def write_to_file(self, output):
         # store the bytearray to file
-        with open(out_file, "wb") as file:
-            file.write(barr)
+        with open(output, "wb") as file:
+            file.write(self.result)
 
-    def decompress(self, content):
+        return self
+
+    def write_to_stdout(self):
+        sys.stdout.buffer.write(self.result)
+        return self
+
+
+class Decompressor:
+    def __init__(self, buffered_reader):
+        self.content = read_from_buffer(buffered_reader)
+        self.pointer = None
+        self.result = bytearray()
+
+    def run(self):
+        self.decompress()
+        return self
+
+    def decompress(self):
         """
         Decompress the compressed data
-
-        :param content: The input
-        :type content: bytes
-        :return: The decompressed data
-        :rtype: bytearray
         """
-        decode = bytearray()
 
         # before we start, decode the size of sliding window
-        self.pointer = Pointer(content[0])
+        self.pointer = Pointer(self.content[0])
 
         cur = 1
-        while cur < len(content):
-            head = content[cur]
+        while cur < len(self.content):
+            head = self.content[cur]
             """
             Decode non-pointers
             """
             if head != self.pointer.ESCAPE_CHAR:
-                decode.append(head)
+                self.result.append(head)
                 cur += 1
                 continue
 
             # If is escaped char
-            if sum(content[cur + 1: cur + self.pointer.size + 1]) == 0:
-                decode.append(self.pointer.ESCAPE_CHAR)
+            if sum(self.content[cur + 1: cur + self.pointer.size + 1]) == 0:
+                self.result.append(self.pointer.ESCAPE_CHAR)
                 cur += self.pointer.size + 1
                 continue
 
             """
             Decode pointer
             """
-            barr = bytearray(content[cur: cur + self.pointer.size + 1])
+            barr = bytearray(self.content[cur: cur + self.pointer.size + 1])
+            # move cursor to the next position
             cur += self.pointer.size + 1
 
+            # decode the pointer information
             offset, length = self.pointer.decode(barr)
-            start = len(decode) - offset - 1
+            start = len(self.result) - offset - 1
             end = start + length
 
-            decode.extend(decode[start:end])
+            # copy the content from previous location
+            self.result.extend(self.result[start:end])
 
-        return decode
+    def write_to_file(self, output):
+        # store the bytearray to file
+        with open(output, "wb") as file:
+            file.write(self.result)
 
-    def decompress_to_file(self, input_file, output_file):
-        """
-        Decompress the input file and output to file
-
-        :param input_file:
-        :type input_file: str
-        :param output_file:
-        :type output_file: str
-        """
-        with open(input_file, "rb") as file:
-            content = file.read()
-
-        decoded = self.decompress(content)
-
-        with open(output_file, "wb") as file:
-            file.write(decoded)
+    def write_to_stdout(self):
+        sys.stdout.buffer.write(self.result)

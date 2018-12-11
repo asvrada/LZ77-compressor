@@ -13,10 +13,10 @@ Download/clone the repo, `cd` to project's root directory.
 Size of sliding window is optional, 9 means 4K, 13 means 64K
 
 # Compress file
-python cli.py [--size {9, 13}] zip path/to/file
+python cli_file_compress.py [--size {9, 13}] xxx.xxx
 
 # Decompress file
-python cli.py unzip path/to/file
+python cli_file_decompress.py  xxx.xxx.s
 ```
 
 ### In Python scripts

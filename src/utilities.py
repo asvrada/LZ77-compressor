@@ -1,3 +1,7 @@
+def read_from_buffer(buffer):
+    return buffer.read()
+
+
 def int2str(number, length):
     """
     Convert number into binary string, and pad with leading 0 if binary string shorter than length
